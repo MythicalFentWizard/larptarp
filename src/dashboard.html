@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nepenthes Control</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e4e7ec;
+  --accent: #2f6fde; --good: #1f9d55; --warn: #c27c0e; --bad: #d14343; --chip: #eef2f7;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1218; --panel: #171b23; --text: #e6e9ef; --muted: #8b93a3; --line: #262c38;
+          --accent: #6b9cff; --good: #3fbf7f; --warn: #e0a33a; --bad: #ef6b6b; --chip: #212734; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 16px; margin: 0 8px 0 0; }
+.pill { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.armed { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.pill.disarmed { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.spacer { flex: 1; }
+.muted { color: var(--muted); }
+button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.danger { color: var(--bad); }
+main { padding: 16px 20px; display: grid; gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.kpi .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: 12px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.panel h2 { font-size: 13px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--chip); }
+tbody tr.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ua { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+.path { max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; font-family: var(--mono); font-size: 12px; }
+.badge { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--chip); }
+.s-contained, .o-trapped { color: var(--accent); }
+.s-normal, .o-none { color: var(--muted); }
+.s-blocked, .o-blocked { color: var(--bad); }
+.s-completed, .o-released, .o-budget_exhausted { color: var(--good); }
+.o-abandoned { color: var(--warn); }
+.bar { width: 60px; height: 6px; background: var(--chip); border-radius: 3px; display: inline-block; vertical-align: middle; }
+.bar > i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.detail { padding: 12px 14px; display: grid; gap: 12px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.fact .l { font-size: 11px; color: var(--muted); }
+.fact .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--chip); border-radius: 999px; padding: 2px 9px; font-size: 12px; font-family: var(--mono); }
+.timeline { max-height: 460px; overflow-y: auto; border-top: 1px solid var(--line); }
+.tl { display: grid; grid-template-columns: 70px 88px minmax(0, 1fr) 70px; gap: 8px; padding: 5px 14px; border-bottom: 1px solid var(--line); font-size: 12px; align-items: baseline; }
+.tl .k { font-weight: 600; }
+.tl .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Consolas, monospace; }
+.tl .note { grid-column: 3 / 5; color: var(--muted); }
+.k-maze, .k-search { color: var(--accent); } .k-hop { color: var(--warn); } .k-transition, .k-flag { color: var(--bad); }
+.k-abandoned { color: var(--warn); } .k-resumed { color: var(--good); }
+.empty { padding: 24px 14px; color: var(--muted); }
+select { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nepenthes control</h1>
+  <span id="armed" class="pill armed">armed</span>
+  <span class="muted" id="uptime"></span>
+  <span class="spacer"></span>
+  <span class="muted" id="updated"></span>
+  <button id="kill" class="danger">Engage killswitch</button>
+</header>
+<main>
+  <section class="kpis" id="kpis"></section>
+  <div class="grid">
+    <section class="panel">
+      <h2>Sessions
+        <span class="spacer"></span>
+        <select id="filter">
+          <option value="">all</option><option value="contained" selected>contained</option>
+          <option value="normal">normal</option><option value="completed">completed</option><option value="blocked">blocked</option>
+        </select>
+      </h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>State</th><th>Outcome</th><th>Client</th><th>Confidence</th><th>Pages</th><th>Trapped</th><th>Think time</th><th>Quiet</th><th>Last path</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="norows" class="empty" hidden>No sessions match this filter yet.</div>
+    </section>
+    <section class="panel">
+      <h2>Session <span class="muted" id="sid"></span></h2>
+      <div id="detail" class="empty">Select a session to see its timeline.</div>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  const token = new URLSearchParams(location.search).get("token");
+  const headers = token ? { Authorization: "Bearer " + token } : {};
+  let selected = null;
+
+  async function api(path, opts) {
+    const r = await fetch(path, Object.assign({ headers: Object.assign({ "Content-Type": "application/json" }, headers) }, opts || {}));
+    if (!r.ok) throw new Error(path + " -> " + r.status);
+    return r.json();
+  }
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+  function dur(ms) {
+    if (ms == null) return "–";
+    const s = Math.round(ms / 1000);
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60), h = Math.floor(m / 60);
+    return h ? h + "h " + (m % 60) + "m" : m + "m " + (s % 60) + "s";
+  }
+  function num(n) { return (n ?? 0).toLocaleString(); }
+
+  function kpis(m) {
+    const c = m.counters, g = m.gauges;
+    const items = [
+      ["Enemy downtime", dur(m.enemy_downtime_secs * 1000)],
+      ["Contained now", num(g.sessions_by_state.contained)],
+      ["Maze streams open", num(g.active_trap_streams)],
+      ["Maze pages served", num(c.trap_pages_served + c.searches_served)],
+      ["Gave up", num(c.sessions_abandoned)],
+      ["Loops detected", num(c.loops_detected)],
+      ["Webdriver seen", num(c.webdriver_detected)],
+      ["Remembered", num(g.remembered_fingerprints)],
+    ];
+    const box = document.getElementById("kpis");
+    box.replaceChildren(...items.map(([l, v]) => { const k = el("div", "kpi"); k.append(el("div", "v", v), el("div", "l", l)); return k; }));
+    const armed = document.getElementById("armed");
+    armed.textContent = m.killswitch ? "disarmed" : "armed";
+    armed.className = "pill " + (m.killswitch ? "disarmed" : "armed");
+    const kill = document.getElementById("kill");
+    kill.textContent = m.killswitch ? "Release killswitch" : "Engage killswitch";
+    kill.dataset.engaged = m.killswitch ? "1" : "";
+    document.getElementById("uptime").textContent = "up " + dur(m.uptime_secs * 1000);
+  }
+
+  function rows(list) {
+    const body = document.getElementById("rows");
+    document.getElementById("norows").hidden = list.length > 0;
+    const now = Date.now();
+    body.replaceChildren(...list.map(s => {
+      const tr = el("tr", s.id === selected ? "sel" : "");
+      tr.onclick = () => { selected = s.id; refresh(); };
+      const td = (child) => { const t = el("td"); if (child instanceof Node) t.append(child); else t.textContent = child; return t; };
+      const conf = el("span", "bar"); const fill = el("i"); fill.style.width = Math.round(s.confidence * 100) + "%"; conf.append(fill);
+      const client = el("span", "ua", s.user_agent || "(no user agent)"); client.title = s.user_agent + " · " + s.client_ip;
+      const path = el("span", "path", s.last_path); path.title = s.last_path;
+      tr.append(
+        td(el("span", "badge s-" + s.state, s.state)),
+        td(el("span", "badge o-" + s.outcome, s.outcome.replace("_", " "))),
+        td(client), td(conf), td(num(s.navigation_depth)), td(dur(s.trapped_ms)),
+        td(dur(s.median_dwell_ms)), td(dur(now - Date.parse(s.last_activity))), td(path));
+      return tr;
+    }));
+  }
+
+  async function detail() {
+    const box = document.getElementById("detail");
+    if (!selected) return;
+    let d;
+    try { d = await api("/sessions/" + selected + "/timeline"); }
+    catch (e) { box.className = "empty"; box.textContent = "Session is gone (expired)."; selected = null; return; }
+    const s = d.session, st = d.stats;
+    document.getElementById("sid").textContent = s.id.slice(0, 8);
+    box.className = "detail";
+    const facts = el("div", "facts");
+    [["State", s.state], ["Outcome", s.outcome.replace("_", " ")], ["Maze pages", st.maze_pages], ["Searches", st.searches],
+     ["Hops", st.hops], ["Loops", st.loops_detected], ["Unique pages", st.unique_pages], ["Trapped", dur(st.time_trapped_ms)],
+     ["Think time", dur(st.median_dwell_ms)], ["Avg drip", dur(st.avg_page_drip_ms)], ["Quiet for", dur(st.quiet_for_ms)],
+     ["Restored", s.restored ? "yes" : "no"]].forEach(([l, v]) => { const f = el("div", "fact"); f.append(el("div", "l", l), el("div", "v", String(v))); facts.append(f); });
+    const chips = el("div", "chips");
+    (s.signals.length ? s.signals : ["no signals"]).forEach(x => chips.append(el("span", "chip", x)));
+    const actions = el("div", "chips");
+    [["release", "Release"], ["block", "Block"], ["contain", "Contain"]].forEach(([a, label]) => {
+      const b = el("button", a === "block" ? "danger" : "", label);
+      b.onclick = async () => { try { await api("/sessions/" + s.id + "/" + a, { method: "POST", body: "{}" }); } catch (e) { alert(e.message); } refresh(); };
+      actions.append(b);
+    });
+    const ua = el("div", "muted", s.user_agent + " · " + s.client_ip);
+    const tl = el("div", "timeline");
+    d.timeline.slice().reverse().forEach(e => {
+      const row = el("div", "tl");
+      row.title = e.path || "";
+      row.append(el("span", "muted", "+" + dur(e.offset_ms)), el("span", "k k-" + e.kind, e.kind),
+                 el("span", "path", e.path || ""), el("span", "muted", e.duration_ms != null ? dur(e.duration_ms) : (e.status ?? "")));
+      if (e.note) row.append(el("span", "note", e.note));
+      tl.append(row);
+    });
+    box.replaceChildren(ua, facts, chips, actions, tl);
+  }
+
+  async function refresh() {
+    try {
+      const filter = document.getElementById("filter").value;
+      const [m, list] = await Promise.all([api("/metrics"), api("/sessions?limit=200" + (filter ? "&state=" + filter : ""))]);
+      kpis(m); rows(list.sessions); await detail();
+      document.getElementById("updated").textContent = "updated " + new Date().toLocaleTimeString();
+    } catch (e) {
+      document.getElementById("updated").textContent = "offline: " + e.message;
+    }
+  }
+
+  document.getElementById("filter").onchange = refresh;
+  document.getElementById("kill").onclick = async (ev) => {
+    const engage = !ev.target.dataset.engaged;
+    if (engage && !confirm("Disarm the trap? Contained clients will get 503s until you release it.")) return;
+    await api("/killswitch", { method: "POST", body: JSON.stringify({ engaged: engage }) });
+    refresh();
+  };
+  refresh();
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

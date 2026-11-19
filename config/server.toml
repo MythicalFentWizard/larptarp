@@ -1,0 +1,120 @@
+# Nepenthes tarpit configuration.
+# Every key is optional; anything left out falls back to the built-in default.
+# Print every default with:  cargo run -- --print-default-config
+
+[server]
+bind = "127.0.0.1:8080"            # where crawlers / agents connect (data plane)
+trust_forwarded_for = false        # only enable behind a reverse proxy you control
+cookie_name = "np_sid"
+secret = "change-me"               # seeds the maze; change it so your maze is unique
+shutdown_grace_secs = 10
+
+[control]
+enabled = true
+bind = "127.0.0.1:9100"            # separate control plane + dashboard; keep it on loopback
+# token = "a-long-random-string"   # then send `Authorization: Bearer <token>` (dashboard: /?token=...)
+
+[classifier]
+mode = "auto"                      # auto | contain_all | off
+threshold = 0.6                    # confidence (0..1) at which a session is contained
+high_rate_rps = 4.0
+min_human_dwell_ms = 800           # opening the next page faster than this counts as "fast"
+beacon = true                      # stylesheet + pixel + JS beacon on every HTML page (browser-agent checks)
+# Case-insensitive User-Agent fragments that are ALWAYS trapped.
+# Put the User-Agent your local agent sends here if it looks like a browser.
+always_contain_user_agents = []
+# Never trapped. Search engines are exempt so your real pages keep their ranking.
+never_contain_user_agents = ["googlebot", "bingbot", "duckduckbot", "applebot", "yandexbot", "baiduspider"]
+never_contain_ips = []
+# bot_user_agents = ["bot", "python-requests", "..."]   # overrides the built-in list
+
+[classifier.weights]
+# Request headers
+known_bot_user_agent = 0.6
+empty_user_agent = 0.6
+missing_accept_language = 0.15
+wildcard_accept = 0.1
+missing_sec_fetch = 0.1
+honeypot = 1.0                     # touching the maze prefix contains the session immediately
+# Session behaviour
+ignores_cookies = 0.2
+high_rate = 0.25
+no_subresources = 0.3              # 2+ pages viewed without loading their stylesheet / pixel
+no_javascript = 0.15               # 2+ pages viewed and the JS beacon never fired
+webdriver = 0.6                    # beacon saw navigator.webdriver (Playwright, Selenium, Puppeteer)
+headless_browser = 0.4             # beacon saw a headless browser
+no_interaction = 0.15              # several pages with JS running but no mouse/touch/scroll/keys
+fast_navigation = 0.2              # 3+ page-to-page hops faster than min_human_dwell_ms
+missing_referer = 0.1              # 3+ in-site navigations without a Referer
+
+[session]
+max_concurrent_sessions = 10000
+max_requests_per_session = 10000   # then the session is redirected to the exit; 0 = unlimited
+idle_timeout_secs = 900
+max_lifetime_secs = 86400
+cleanup_interval_secs = 10         # how often expiry and give-up checks run
+loop_window = 64                   # recent page visits kept for loop detection
+loop_threshold = 3                 # same page this many times in the window = loop
+abandon_after_secs = 120           # contained + quiet this long = the agent gave up (0 = off)
+timeline_max_entries = 500         # per-session timeline kept in memory (0 = off)
+remember_secs = 604800             # contained/blocked fingerprints are trapped on sight for 7 days,
+max_remembered = 100000            #   also across restarts (loaded from storage)
+
+[redirect]
+exit_destination = "/exit"
+allowlist = ["/exit"]              # local paths ("/x", "/x/*") or origins ("https://example.org")
+max_redirect_depth = 4             # consecutive 302 hops inside the maze before a page is served
+hop_probability = 0.15
+
+[tarpit]
+prefix = "/archive"
+backend = "builtin"                # builtin | upstream (proxy to a running nepenthes-py)
+upstream_url = "http://127.0.0.1:8893"
+# corpus_path = "config/corpus.txt"  # any plain-text file to train the babble on
+min_delay_ms = 1500                # each page drips out over min..max milliseconds
+max_delay_ms = 8000
+drip_chunk_bytes = 192
+min_links = 5
+max_links = 12
+min_paragraphs = 3
+max_paragraphs = 7
+max_url_depth = 10
+
+[limits]
+killswitch = false                 # true = start with the trap disarmed
+max_inflight_requests = 2048
+max_concurrent_streams = 512       # maze pages being dripped at once (extra requests get a cheap 503)
+max_concurrent_generations = 4     # CPU guard: pages generated at once
+bandwidth_bytes_per_sec = 2097152  # global maze bandwidth (0 = unlimited)
+bandwidth_burst_bytes = 262144
+
+[rate_limit]
+enabled = true
+per_ip_rps = 25.0
+burst = 50.0
+
+[storage]
+enabled = true
+database_url = "sqlite://data/nepenthes.db"
+channel_capacity = 16384
+batch_size = 256
+flush_interval_ms = 500
+persist_interval_secs = 15
+log_requests = true
+retention_days = 30                # rows older than this are pruned hourly (0 = keep forever)
+
+[telemetry]
+log_level = "info"                 # RUST_LOG overrides this
+log_format = "pretty"              # pretty | json
+
+[normal]
+site_name = "Field Notes"
+# What legitimate visitors get (first match wins):
+# upstream_url = "http://127.0.0.1:3000"   # reverse-proxy your real site; HTML gets the browser checks injected
+# static_dir = "public"                    # or serve files from a directory
+#                                          # or neither: the built-in placeholder pages
+# A visible "Archive" link + search box on the built-in pages. Catches agents
+# that only act on what is rendered on screen. Humans who click it are trapped
+# too, so turn it off if this listener is reachable by real visitors.
+visible_entry_link = true
+max_inject_bytes = 2097152         # larger HTML pages are passed through without the checks
