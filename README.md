@@ -1,5 +1,5 @@
 # Nepenthes (Rust)
-
+Basically an evill ass ddos tool using agents trapped in larptarp to throw their asses at a random domain you wish to fuck up
 An asynchronous HTTP crawler tarpit with a separate control plane for managing
 sessions, redirects and telemetry. Point an AI agent or crawler at it and the
 backend:
